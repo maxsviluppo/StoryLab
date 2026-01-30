@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, ViewChild, ElementRef, SecurityContext } from '@angular/core';
+import { Component, inject, signal, computed, effect, ViewChild, ElementRef, SecurityContext, HostListener } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GeminiService } from './services/gemini.service';
@@ -30,6 +30,15 @@ interface EffectOption {
   label: string;
   icon: string;
   prompt: string;
+}
+
+interface SceneLayer {
+  id: string;       // Unique layer ID
+  subjectId: string;
+  x: number;        // Percentage (0-100)
+  y: number;        // Percentage (0-100)
+  scale: number;    // Scale factor (0.5 - 3.0)
+  zIndex: number;
 }
 
 @Component({
@@ -104,9 +113,27 @@ export class AppComponent {
   // Edit Mode State - Stores the entire project being referenced
   editingProject = signal<Project | null>(null);
 
+  // --- Scene Editor (Canvas) State ---
+  isCanvasMode = signal(false);
+  sceneLayers = signal<SceneLayer[]>([]);
+  selectedLayerId = signal<string | null>(null);
+  
+  // Dragging State
+  private isDragging = false;
+  private dragStart = { x: 0, y: 0 };
+  private activeLayerStart = { x: 0, y: 0 }; // Percentage
+  
+  @ViewChild('sceneCanvas') sceneCanvasRef!: ElementRef<HTMLDivElement>;
+
   // --- Computed ---
   sortedSubjects = computed(() => [...this.subjects()].sort((a, b) => b.createdAt - a.createdAt));
   sortedProjects = computed(() => [...this.projects()].sort((a, b) => b.createdAt - a.createdAt));
+  
+  activeLayer = computed(() => {
+    const id = this.selectedLayerId();
+    if (!id) return null;
+    return this.sceneLayers().find(l => l.id === id) || null;
+  });
 
   constructor() {
     // Load data
@@ -249,10 +276,151 @@ export class AppComponent {
     }
   }
 
+  // --- SCENE EDITOR LOGIC ---
+
+  toggleCanvasMode() {
+    this.isCanvasMode.update(v => !v);
+  }
+
+  addToScene(subject: SubjectModel) {
+    const newLayer: SceneLayer = {
+      id: crypto.randomUUID(),
+      subjectId: subject.id,
+      x: 50, // Center
+      y: 50, // Center
+      scale: 1,
+      zIndex: this.sceneLayers().length + 1
+    };
+    this.sceneLayers.update(prev => [...prev, newLayer]);
+    this.selectedLayerId.set(newLayer.id);
+  }
+
+  removeLayer(layerId: string) {
+    this.sceneLayers.update(prev => prev.filter(l => l.id !== layerId));
+    if (this.selectedLayerId() === layerId) {
+      this.selectedLayerId.set(null);
+    }
+  }
+
+  selectLayer(layerId: string, event?: Event) {
+    if (event) event.stopPropagation();
+    this.selectedLayerId.set(layerId);
+    
+    // Bring to front logic (optional, but good UX)
+    this.sceneLayers.update(layers => {
+      const maxZ = Math.max(...layers.map(l => l.zIndex), 0);
+      return layers.map(l => l.id === layerId ? { ...l, zIndex: maxZ + 1 } : l);
+    });
+  }
+
+  updateLayerScale(val: number) {
+    const id = this.selectedLayerId();
+    if (!id) return;
+    this.sceneLayers.update(layers => layers.map(l => l.id === id ? { ...l, scale: val } : l));
+  }
+
+  // --- Drag & Drop Implementation ---
+  
+  onCanvasMouseDown(event: MouseEvent, layer: SceneLayer) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectLayer(layer.id);
+    this.isDragging = true;
+    this.dragStart = { x: event.clientX, y: event.clientY };
+    this.activeLayerStart = { x: layer.x, y: layer.y };
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onWindowMouseMove(event: MouseEvent) {
+    if (!this.isDragging || !this.selectedLayerId() || !this.sceneCanvasRef) return;
+
+    const canvasRect = this.sceneCanvasRef.nativeElement.getBoundingClientRect();
+    const deltaX = event.clientX - this.dragStart.x;
+    const deltaY = event.clientY - this.dragStart.y;
+
+    // Convert pixels to percentage relative to canvas size
+    const percentX = (deltaX / canvasRect.width) * 100;
+    const percentY = (deltaY / canvasRect.height) * 100;
+
+    const newX = this.activeLayerStart.x + percentX;
+    const newY = this.activeLayerStart.y + percentY;
+
+    // Clamp values (roughly -50 to 150 to allow off-screen partial)
+    const clampedX = Math.max(-20, Math.min(120, newX));
+    const clampedY = Math.max(-20, Math.min(120, newY));
+
+    this.sceneLayers.update(layers => 
+      layers.map(l => l.id === this.selectedLayerId() ? { ...l, x: clampedX, y: clampedY } : l)
+    );
+  }
+
+  @HostListener('window:mouseup')
+  onWindowMouseUp() {
+    this.isDragging = false;
+  }
+  
+  // Wheel to resize when hovering selected
+  onLayerWheel(event: WheelEvent, layerId: string) {
+    if (this.selectedLayerId() !== layerId) return;
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -0.1 : 0.1;
+    this.sceneLayers.update(layers => 
+      layers.map(l => {
+        if (l.id === layerId) {
+          const newScale = Math.max(0.2, Math.min(5, l.scale + delta));
+          return { ...l, scale: newScale };
+        }
+        return l;
+      })
+    );
+  }
+
+  // --- Generation Logic Update ---
+
+  generateSpatialPrompt(): string {
+    const layers = this.sceneLayers();
+    if (layers.length === 0) return "";
+
+    const descriptions: string[] = [];
+    
+    // Sort layers by X position to describe left-to-right
+    const sortedByX = [...layers].sort((a, b) => a.x - b.x);
+
+    sortedByX.forEach(layer => {
+      const subject = this.subjects().find(s => s.subjectId === layer.subjectId || s.id === layer.subjectId);
+      if (!subject) return;
+
+      let position = "";
+      if (layer.x < 33) position += "on the left";
+      else if (layer.x > 66) position += "on the right";
+      else position += "in the center";
+
+      if (layer.y < 33) position += ", in the upper background";
+      else if (layer.y > 66) position += ", in the foreground";
+      
+      if (layer.scale < 0.6) position += " (appearing small/distant)";
+      else if (layer.scale > 1.5) position += " (appearing large/close-up)";
+
+      descriptions.push(`[${subject.name}]: located ${position}. Visual: ${subject.prompt}`);
+    });
+
+    return `\n\nSPATIAL LAYOUT INSTRUCTIONS:\n${descriptions.join('\n')}\nCompose the scene respecting these relative positions.`;
+  }
+
   async createProject(type: 'image' | 'video') {
-    const squad = this.selectedSubjects();
-    const prompt = this.newProjectPrompt();
+    let squad = this.selectedSubjects();
+    let prompt = this.newProjectPrompt();
     const ratio = this.selectedAspectRatio();
+    
+    // Override if in Canvas Mode
+    if (this.isCanvasMode() && this.sceneLayers().length > 0) {
+        const spatialPrompt = this.generateSpatialPrompt();
+        prompt += spatialPrompt;
+        
+        // Also ensure the "squad" includes all layers in the canvas, even if not selected in gallery
+        const layerSubjectIds = new Set(this.sceneLayers().map(l => l.subjectId));
+        squad = this.subjects().filter(s => layerSubjectIds.has(s.id));
+    }
     
     if (squad.length === 0 || !prompt) return;
 
@@ -276,11 +444,18 @@ export class AppComponent {
 
     // Costruzione Prompt Combinato
     let fullPrompt = "";
-    if (squad.length === 1) {
-        fullPrompt = `Character Reference Description: ${squad[0].prompt}. \n\nTarget Scene: ${prompt}.`;
+    
+    if (this.isCanvasMode()) {
+         // In canvas mode, prompt already contains spatial info appended above
+         fullPrompt = `Scene Description: ${prompt}`;
     } else {
-        const charDescriptions = squad.map((s, i) => `[Character ${i+1} (${s.name}) Visual Data: ${s.prompt}]`).join("\n");
-        fullPrompt = `Scene with multiple characters:\n${charDescriptions}\n\nTarget Scene Description: ${prompt}.\nEnsure coherent interaction based on Visual Data provided.`;
+        // Classic Mode
+        if (squad.length === 1) {
+            fullPrompt = `Character Reference Description: ${squad[0].prompt}. \n\nTarget Scene: ${prompt}.`;
+        } else {
+            const charDescriptions = squad.map((s, i) => `[Character ${i+1} (${s.name}) Visual Data: ${s.prompt}]`).join("\n");
+            fullPrompt = `Scene with multiple characters:\n${charDescriptions}\n\nTarget Scene Description: ${prompt}.\nEnsure coherent interaction based on Visual Data provided.`;
+        }
     }
 
     // Append Effect Instructions if present
@@ -310,7 +485,8 @@ export class AppComponent {
     try {
       if (type === 'video') {
         this.generationStatus.set(`Veo 2.0: Generazione Clip (${ratio}) + FX...`);
-        const primary = this.primarySubject(); 
+        // If canvas mode, we pick the first layer as reference or just the first subject
+        const primary = squad[0]; 
         if (!primary) throw new Error("Nessun soggetto primario trovato.");
 
         const videoPrompt = `${fullPrompt} (Output aspect ratio: ${ratio}, Cinematic, High Quality)`;
@@ -360,6 +536,10 @@ export class AppComponent {
     this.selectedImageEffect.set(this.imageEffects[0]);
     this.selectedVideoEffect.set(this.videoEffects[0]);
     
+    // Disable Canvas Mode on Remix for simplicity (simplification)
+    this.isCanvasMode.set(false);
+    this.sceneLayers.set([]);
+
     // 4. Navigate to Studio
     this.setView('studio');
   }
@@ -368,6 +548,7 @@ export class AppComponent {
     this.editingProject.set(null);
     this.newProjectPrompt.set('');
     this.selectedAspectRatio.set('16:9');
+    this.isCanvasMode.set(false);
   }
 
   deleteProject(id: string, event: Event) {
@@ -412,5 +593,9 @@ export class AppComponent {
 
   setVideoEffect(effect: EffectOption) {
     this.selectedVideoEffect.set(effect);
+  }
+  
+  getSubjectById(id: string) {
+      return this.subjects().find(s => s.id === id);
   }
 }
