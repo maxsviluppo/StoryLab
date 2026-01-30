@@ -221,305 +221,280 @@
 
     <!-- VIEW: STUDIO -->
     @if (activeTab() === 'studio') {
-      <div class="mx-auto max-w-6xl h-full flex flex-col gap-6">
+      <div class="mx-auto max-w-7xl h-full flex flex-col gap-6">
         
         <!-- Cast Strip -->
         <div class="w-full overflow-x-auto pb-2">
            <div class="flex gap-4">
              @if (selectedSubjects().length > 0) {
                @for (sub of selectedSubjects(); track sub.id) {
-                 <div class="relative flex-shrink-0 w-24">
-                   <img [src]="sub.imageUrl" class="h-24 w-24 rounded-lg object-cover border border-purple-500/50 shadow-md">
-                   <div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white/20">
+                 <div class="relative flex-shrink-0 w-20">
+                   <img [src]="sub.imageUrl" class="h-20 w-20 rounded-lg object-cover border border-purple-500/50 shadow-md">
+                   <div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow border border-white/20">
                      ATTORE
                    </div>
-                   <p class="text-[10px] text-center mt-1 text-gray-400 truncate">{{ sub.name }}</p>
+                   <p class="text-[9px] text-center mt-1 text-gray-400 truncate">{{ sub.name }}</p>
                  </div>
                }
              } @else {
-               <div class="w-full p-8 border border-dashed border-gray-700 rounded-xl text-center text-gray-500">
-                 <i class="fa-solid fa-users-slash text-2xl mb-2"></i>
-                 <p>Nessun attore selezionato.</p>
-                 <button (click)="setView('gallery')" class="text-cyan-400 underline mt-2 text-sm">Scegli Cast dalla Galleria</button>
+               <div class="w-full p-6 border border-dashed border-gray-700 rounded-xl text-center text-gray-500 flex items-center justify-center gap-4">
+                 <div>
+                    <i class="fa-solid fa-users-slash text-xl mb-1"></i>
+                    <p class="text-xs">Nessun attore</p>
+                 </div>
+                 <button (click)="setView('gallery')" class="text-cyan-400 bg-cyan-900/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-cyan-900/50 transition-colors">Scegli Cast</button>
                </div>
              }
            </div>
         </div>
 
-        <div class="flex-1 glass-panel rounded-2xl border border-purple-500/30 p-8 flex flex-col relative overflow-hidden">
-          <div class="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
-             <i class="fa-solid fa-clapperboard text-[10rem]"></i>
-          </div>
-
-          <div class="mb-6 relative z-10 flex justify-between items-start">
-            <div>
-              <h2 class="text-3xl font-black text-white neon-text-pink uppercase italic">REGIA SCENA</h2>
-              <p class="text-purple-300/60">Descrivi l'azione, l'ambiente e lo stile per il tuo cast.</p>
-            </div>
-            
-             <!-- Edit Mode Indicator -->
-            @if (editingProject()) {
-              <div class="bg-yellow-600/30 border border-yellow-600 text-yellow-500 px-4 py-2 rounded-lg flex items-center gap-3 animate-pulse">
+        <div class="flex-1 glass-panel rounded-2xl border border-purple-500/30 flex flex-col relative overflow-hidden">
+          
+          <!-- Studio Header -->
+          <div class="p-6 border-b border-white/10 flex justify-between items-center bg-black/40">
+             <div>
+                <h2 class="text-2xl font-black text-white neon-text-pink uppercase italic tracking-wider">
+                   <i class="fa-solid fa-clapperboard mr-2"></i> REGIA
+                </h2>
+                <p class="text-xs text-purple-300/60 font-mono">SCENE COMPOSITOR & FX MODULE</p>
+             </div>
+             
+             @if (editingProject()) {
+              <div class="bg-yellow-600/30 border border-yellow-600 text-yellow-500 px-4 py-2 rounded-lg flex items-center gap-3 animate-pulse shadow-[0_0_15px_rgba(234,179,8,0.2)]">
                 <i class="fa-solid fa-pen-nib text-xl"></i>
                 <div class="text-xs font-bold uppercase tracking-widest text-right">
                    <span>Modalità Modifica</span>
-                   <span class="block text-[9px] text-yellow-300">Stai modificando una scena esistente</span>
+                   <button (click)="cancelEdit()" class="block text-[9px] text-white hover:text-red-400 underline mt-1">Annulla</button>
                 </div>
               </div>
             }
           </div>
 
-          <!-- Edit Reference Viewer & Prompt Split -->
-          <div class="flex-1 flex flex-col lg:flex-row gap-6 relative z-10">
-            
-            <!-- Reference Image (Left) - Only visible when editing -->
-            @if (editingProject()) {
-              <div class="w-full lg:w-1/3 flex flex-col gap-2 animate-fade-in">
-                 <div class="text-xs font-bold uppercase tracking-widest text-yellow-500 mb-1 flex items-center gap-2">
-                    <i class="fa-solid fa-eye"></i> SCENA ORIGINALE (Riferimento)
-                 </div>
-                 <div class="relative w-full aspect-video rounded-xl overflow-hidden border-2 border-yellow-500/50 shadow-lg shadow-yellow-500/20 bg-black">
-                    @if (editingProject()!.type === 'video') {
-                       <video [src]="getSafeUrl(editingProject()!.resultUrl)" class="w-full h-full object-contain" autoplay loop muted></video>
-                    } @else {
-                       <img [src]="getSafeUrl(editingProject()!.resultUrl)" class="w-full h-full object-contain">
-                    }
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-2 pointer-events-none">
-                       <p class="text-[10px] text-gray-300 italic line-clamp-2">"{{ editingProject()!.scenePrompt }}"</p>
-                    </div>
-                 </div>
-                 <button (click)="cancelEdit()" class="text-center text-xs text-gray-500 hover:text-red-400 mt-2 border-b border-transparent hover:border-red-400 transition-all self-center">
-                    <i class="fa-solid fa-xmark mr-1"></i> Chiudi Riferimento
-                 </button>
-              </div>
-            }
-
-            <!-- Controls (Right/Main) -->
-            <div class="flex-1 flex flex-col space-y-6">
-              <textarea 
-                [(ngModel)]="newProjectPrompt"
-                [disabled]="selectedSubjects().length === 0"
-                rows="4"
-                placeholder="Descrivi la scena e lo stile desiderato. Es: 'Il team in una foresta fotorealistica', oppure 'Disegno a matita', 'Locandina film sci-fi', 'Anime anni 90'..."
-                class="w-full rounded-lg bg-black/50 border border-purple-900 p-6 text-lg text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all resize-none flex-1 disabled:opacity-50 font-sans"></textarea>
-
-              <!-- SETTINGS MODULE: RATIO & EFFECTS -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/30 p-4 rounded-xl border border-white/5">
+          <div class="flex-1 flex flex-col lg:flex-row h-full overflow-hidden">
+             
+             <!-- LEFT COLUMN: Prompt & Reference -->
+             <div class="w-full lg:w-1/2 p-6 flex flex-col gap-6 border-r border-white/10 overflow-y-auto">
                 
-                <!-- Aspect Ratio Selector -->
+                @if (editingProject()) {
+                  <div class="rounded-xl overflow-hidden border border-yellow-500/30 bg-black relative shrink-0">
+                     <div class="absolute top-2 left-2 bg-yellow-600 text-black text-[10px] font-bold px-2 py-0.5 rounded z-10">RIFERIMENTO ORIGINALE</div>
+                     <div class="h-48 w-full flex items-center justify-center bg-gray-900">
+                        @if (editingProject()!.type === 'video') {
+                           <video [src]="getSafeUrl(editingProject()!.resultUrl)" class="h-full max-w-full object-contain" autoplay loop muted></video>
+                        } @else {
+                           <img [src]="getSafeUrl(editingProject()!.resultUrl)" class="h-full max-w-full object-contain">
+                        }
+                     </div>
+                  </div>
+                }
+
+                <div class="flex-1 flex flex-col">
+                   <label class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Prompt di Scena</label>
+                   <textarea 
+                    [(ngModel)]="newProjectPrompt"
+                    [disabled]="selectedSubjects().length === 0"
+                    placeholder="Descrivi l'azione, l'illuminazione e l'ambiente..."
+                    class="w-full h-full min-h-[150px] rounded-lg bg-black/50 border border-purple-900 p-4 text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all resize-none font-sans text-sm"></textarea>
+                </div>
+
                 <div class="flex flex-col gap-2">
-                   <label class="text-xs font-bold uppercase tracking-widest text-purple-400"><i class="fa-solid fa-expand mr-1"></i> Formato</label>
+                   <label class="text-xs font-bold uppercase tracking-widest text-gray-500">Formato</label>
                    <div class="flex flex-wrap gap-2">
                      @for (ratio of availableAspectRatios; track ratio) {
                        <button 
                          (click)="setAspectRatio(ratio)"
                          [class]="selectedAspectRatio() === ratio ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-500/30' : 'bg-black/40 border-gray-700 text-gray-500 hover:border-purple-500/50 hover:text-purple-300'"
-                         class="px-3 py-1.5 rounded-lg border font-mono text-[10px] font-bold transition-all duration-300">
+                         class="px-3 py-1.5 rounded border font-mono text-xs font-bold transition-all duration-200">
                          {{ ratio }}
                        </button>
                      }
                    </div>
                 </div>
+             </div>
 
-                <!-- FX Selector Section -->
-                <div class="flex flex-col gap-2">
-                   <label class="text-xs font-bold uppercase tracking-widest text-cyan-400"><i class="fa-solid fa-wand-magic mr-1"></i> FX Module</label>
+             <!-- RIGHT COLUMN: FX Module & Actions -->
+             <div class="w-full lg:w-1/2 p-6 flex flex-col gap-6 bg-black/20 overflow-y-auto">
+                
+                <!-- FX Selector - Visual Grid -->
+                <div class="flex-1 flex flex-col gap-6">
                    
-                   <div class="flex flex-col gap-3">
-                      <!-- Image Effects -->
-                      <div class="flex flex-col gap-1">
-                          <span class="text-[9px] text-gray-500 font-mono uppercase">Rendering (Immagini)</span>
-                          <div class="relative">
-                            <select 
-                                [ngModel]="selectedImageEffect().id" 
-                                (ngModelChange)="setImageEffect($any($event))"
-                                class="w-full bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded-lg p-2 focus:ring-cyan-500 focus:border-cyan-500 block appearance-none cursor-pointer">
-                                @for (effect of imageEffects; track effect.id) {
-                                   <option [ngValue]="effect">{{ effect.label }}</option>
-                                }
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                <i class="fa-solid fa-caret-down"></i>
-                            </div>
-                          </div>
+                   <!-- Image FX -->
+                   <div>
+                      <div class="flex items-center gap-2 mb-3 text-cyan-400 text-xs font-bold uppercase tracking-widest">
+                         <i class="fa-solid fa-paintbrush"></i> Effetti Scena (Rendering)
                       </div>
-
-                      <!-- Video Effects -->
-                      <div class="flex flex-col gap-1">
-                          <span class="text-[9px] text-gray-500 font-mono uppercase">Post-Processing (Video)</span>
-                          <div class="relative">
-                            <select 
-                                [ngModel]="selectedVideoEffect().id" 
-                                (ngModelChange)="setVideoEffect($any($event))"
-                                class="w-full bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500 block appearance-none cursor-pointer">
-                                @for (effect of videoEffects; track effect.id) {
-                                   <option [ngValue]="effect">{{ effect.label }}</option>
-                                }
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                                <i class="fa-solid fa-caret-down"></i>
+                      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                         @for (fx of imageEffects; track fx.id) {
+                            <div 
+                              (click)="setImageEffect(fx)"
+                              class="cursor-pointer p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all duration-200 text-center relative overflow-hidden group"
+                              [class]="selectedImageEffect().id === fx.id ? 'bg-cyan-900/40 border-cyan-400 text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-gray-900/40 border-gray-800 text-gray-500 hover:border-gray-600 hover:text-gray-300'">
+                               <i [class]="'fa-solid ' + fx.icon + ' text-xl'"></i>
+                               <span class="text-[10px] font-bold leading-tight">{{ fx.label }}</span>
+                               @if (selectedImageEffect().id === fx.id) {
+                                  <div class="absolute inset-0 border-2 border-cyan-500 rounded-lg pointer-events-none"></div>
+                               }
                             </div>
-                          </div>
+                         }
                       </div>
                    </div>
-                </div>
-              </div>
 
-              <div class="grid grid-cols-2 gap-6 h-28">
-                <button 
-                  (click)="createProject('image')"
-                  [disabled]="isGenerating() || selectedSubjects().length === 0 || !newProjectPrompt()"
-                  class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 hover:border-cyan-500 hover:from-gray-800 hover:to-black transition-all disabled:opacity-50 shadow-lg">
-                  <div class="flex flex-col items-center justify-center gap-2 h-full">
-                    <i class="fa-solid fa-camera-retro text-2xl text-cyan-500 group-hover:scale-110 transition-transform"></i>
-                    <span class="font-bold text-gray-300 group-hover:text-white text-sm">
-                      {{ editingProject() ? 'CREA VARIANTE IMG' : 'GENERA IMMAGINE' }}
-                    </span>
-                    @if (selectedImageEffect().id !== 'none') {
-                        <span class="text-[9px] text-cyan-400 font-mono tracking-tight bg-cyan-900/30 px-2 rounded">+ {{ selectedImageEffect().label }}</span>
-                    }
-                  </div>
-                </button>
+                   <!-- Video FX -->
+                   <div>
+                      <div class="flex items-center gap-2 mb-3 text-purple-400 text-xs font-bold uppercase tracking-widest">
+                         <i class="fa-solid fa-video"></i> Effetti Post-Process (Video)
+                      </div>
+                      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                         @for (fx of videoEffects; track fx.id) {
+                            <div 
+                              (click)="setVideoEffect(fx)"
+                              class="cursor-pointer p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all duration-200 text-center relative overflow-hidden group"
+                              [class]="selectedVideoEffect().id === fx.id ? 'bg-purple-900/40 border-purple-400 text-white shadow-[0_0_10px_rgba(192,132,252,0.2)]' : 'bg-gray-900/40 border-gray-800 text-gray-500 hover:border-gray-600 hover:text-gray-300'">
+                               <i [class]="'fa-solid ' + fx.icon + ' text-xl'"></i>
+                               <span class="text-[10px] font-bold leading-tight">{{ fx.label }}</span>
+                               @if (selectedVideoEffect().id === fx.id) {
+                                  <div class="absolute inset-0 border-2 border-purple-500 rounded-lg pointer-events-none"></div>
+                               }
+                            </div>
+                         }
+                      </div>
+                   </div>
 
-                <button 
-                  (click)="createProject('video')"
-                  [disabled]="isGenerating() || selectedSubjects().length === 0 || !newProjectPrompt()"
-                  class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 hover:border-purple-500 hover:from-gray-800 hover:to-black transition-all disabled:opacity-50 shadow-lg">
-                  <div class="flex flex-col items-center justify-center gap-2 h-full">
-                    <i class="fa-solid fa-film text-2xl text-purple-500 group-hover:scale-110 transition-transform"></i>
-                    <span class="font-bold text-gray-300 group-hover:text-white text-sm">
-                      {{ editingProject() ? 'CREA VARIANTE VIDEO' : 'GENERA CLIP' }}
-                    </span>
-                    @if (selectedVideoEffect().id !== 'none') {
-                        <span class="text-[9px] text-purple-400 font-mono tracking-tight bg-purple-900/30 px-2 rounded">+ {{ selectedVideoEffect().label }}</span>
-                    }
-                  </div>
-                </button>
-              </div>
-              
-              @if (isGenerating()) {
-                <div class="rounded-xl bg-black/80 border border-cyan-500/30 p-6 shadow-[0_0_30px_rgba(0,243,255,0.15)] relative overflow-hidden group">
-                  <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                      <div class="h-2 w-2 rounded-full bg-cyan-500 animate-ping"></div>
-                      <span class="text-cyan-400 font-mono text-xs uppercase tracking-widest animate-pulse">Status Elaborazione</span>
-                    </div>
-                    <span class="text-white font-bold text-sm tracking-wide font-sans">{{ generationStatus() }}</span>
-                  </div>
-                  <div class="h-3 w-full bg-gray-900 rounded-full overflow-hidden relative border border-gray-700/50">
-                     <div class="absolute top-0 bottom-0 left-0 h-full bg-gradient-to-r from-transparent via-cyan-500 to-transparent w-[50%] animate-slide-x blur-[2px]"></div>
-                     <div class="absolute top-0 bottom-0 left-0 h-full bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 w-[30%] animate-slide-x opacity-80"></div>
-                  </div>
-                  <div class="mt-2 flex justify-between text-[10px] text-gray-600 font-mono uppercase">
-                    <span>Core: Active</span>
-                    <span>Rendering...</span>
-                  </div>
                 </div>
-              }
-            </div>
+
+                <!-- Generate Buttons -->
+                <div class="grid grid-cols-2 gap-4 mt-auto">
+                   <button 
+                     (click)="createProject('image')"
+                     [disabled]="isGenerating() || selectedSubjects().length === 0 || !newProjectPrompt()"
+                     class="py-4 rounded-xl bg-gradient-to-t from-gray-900 to-gray-800 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-white transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-1 group">
+                     <i class="fa-solid fa-camera text-2xl mb-1 text-cyan-500 group-hover:scale-110 transition-transform"></i>
+                     <span class="text-xs font-bold">{{ editingProject() ? 'RIGENERA' : 'GENERA' }} FOTO</span>
+                     @if (selectedImageEffect().id !== 'none') {
+                        <span class="text-[9px] text-cyan-400">+ {{ selectedImageEffect().label }}</span>
+                     }
+                   </button>
+                   
+                   <button 
+                     (click)="createProject('video')"
+                     [disabled]="isGenerating() || selectedSubjects().length === 0 || !newProjectPrompt()"
+                     class="py-4 rounded-xl bg-gradient-to-t from-gray-900 to-gray-800 border border-gray-700 hover:border-purple-500 text-gray-300 hover:text-white transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-1 group">
+                     <i class="fa-solid fa-film text-2xl mb-1 text-purple-500 group-hover:scale-110 transition-transform"></i>
+                     <span class="text-xs font-bold">{{ editingProject() ? 'RIGENERA' : 'GENERA' }} VIDEO</span>
+                     @if (selectedVideoEffect().id !== 'none') {
+                        <span class="text-[9px] text-purple-400">+ {{ selectedVideoEffect().label }}</span>
+                     }
+                   </button>
+                </div>
+
+                <!-- Status Bar -->
+                @if (isGenerating()) {
+                   <div class="bg-black/80 border border-cyan-500/50 rounded-lg p-3 flex items-center gap-3 animate-pulse">
+                      <div class="h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span class="text-xs text-cyan-400 font-mono">{{ generationStatus() }}</span>
+                   </div>
+                }
+             </div>
           </div>
         </div>
       </div>
     }
 
-    <!-- VIEW: SHOWCASE (Artifacts) -->
+    <!-- VIEW: SHOWCASE (Artifacts) - NEW LIST LAYOUT -->
     @if (activeTab() === 'showcase') {
-      <div class="space-y-12 max-w-5xl mx-auto">
-        <div class="text-center mb-10">
-           <h2 class="text-4xl font-black text-white mb-2">ARCHIVIO</h2>
-           <p class="text-gray-500">Collezione delle scene e dei filmati generati.</p>
+      <div class="max-w-6xl mx-auto pb-10">
+        <div class="flex items-end justify-between mb-8 border-b border-gray-800 pb-4">
+           <div>
+              <h2 class="text-4xl font-black text-white">ARCHIVIO</h2>
+              <p class="text-gray-500 text-sm mt-1">Cronologia produzioni e varianti.</p>
+           </div>
+           <div class="text-xs text-gray-600 font-mono uppercase">
+              TOTALE FILES: {{ sortedProjects().length }}
+           </div>
         </div>
 
-        @for (project of sortedProjects(); track project.id) {
-          <div class="group relative bg-black/40 border border-gray-800 hover:border-gray-600 rounded-3xl overflow-hidden transition-all duration-500 hover:shadow-[0_0_50px_rgba(255,255,255,0.05)]">
-            
-            <!-- Media Container -->
-            <div 
-              (click)="openFullscreen(project)"
-              class="relative w-full aspect-video bg-black flex items-center justify-center cursor-pointer">
-              @if (project.status === 'completed') {
-                  @if (project.type === 'video') {
-                     <video controls loop autoplay muted class="h-full w-full object-contain pointer-events-none" [src]="getSafeUrl(project.resultUrl)"></video>
+        <div class="flex flex-col gap-4">
+          @for (project of sortedProjects(); track project.id) {
+            <div class="group flex flex-col md:flex-row bg-gray-900/30 border border-gray-800 hover:border-gray-600 rounded-xl overflow-hidden transition-all duration-300 hover:bg-gray-900/50">
+               
+               <!-- Media Thumbnail (Left) -->
+               <div 
+                 (click)="openFullscreen(project)"
+                 class="w-full md:w-64 h-48 bg-black relative shrink-0 cursor-pointer border-r border-gray-800 flex items-center justify-center overflow-hidden">
+                  
+                  @if (project.status === 'completed') {
+                     @if (project.type === 'video') {
+                        <video muted loop autoplay class="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" [src]="getSafeUrl(project.resultUrl)"></video>
+                        <div class="absolute top-2 left-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow z-10">VIDEO</div>
+                     } @else {
+                        <img [src]="getSafeUrl(project.resultUrl)" class="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                        <div class="absolute top-2 left-2 bg-cyan-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow z-10">IMG</div>
+                     }
+                     
+                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 backdrop-blur-[1px]">
+                        <i class="fa-solid fa-expand text-white text-2xl drop-shadow-md"></i>
+                     </div>
+                  } @else if (project.status === 'generating') {
+                     <div class="flex flex-col items-center gap-2">
+                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-cyan-500"></i>
+                        <span class="text-[10px] text-cyan-500 uppercase">Processing...</span>
+                     </div>
                   } @else {
-                     <img [src]="getSafeUrl(project.resultUrl)" class="h-full w-full object-contain">
+                     <i class="fa-solid fa-triangle-exclamation text-red-500 text-2xl"></i>
                   }
-                  
-                  <!-- Type Badge -->
-                  <div class="absolute top-4 left-4 flex gap-2">
-                    @if (project.type === 'video') {
-                       <span class="bg-purple-600/90 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm"><i class="fa-solid fa-video mr-1"></i> VIDEO</span>
-                    } @else {
-                       <span class="bg-cyan-600/90 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm"><i class="fa-solid fa-image mr-1"></i> IMMAGINE</span>
-                    }
-                    @if (project.aspectRatio) {
-                       <span class="bg-gray-800/90 text-gray-300 text-xs font-bold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm border border-gray-600">{{ project.aspectRatio }}</span>
-                    }
-                  </div>
-
-                  <!-- Effect Badge if used -->
-                  @if (project.effectName) {
-                    <div class="absolute bottom-4 left-4">
-                       <span class="bg-black/70 text-cyan-300 text-[10px] font-mono font-bold px-2 py-1 rounded border border-cyan-500/30">
-                         FX: {{ project.effectName }}
-                       </span>
-                    </div>
-                  }
-                  
-                  <!-- View Icon Overlay -->
-                  <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                     <i class="fa-solid fa-expand text-white text-4xl drop-shadow-lg"></i>
-                  </div>
-
-              } @else if (project.status === 'generating') {
-                <div class="flex flex-col items-center">
-                   <i class="fa-solid fa-circle-notch fa-spin text-5xl text-gray-700 mb-4"></i>
-                   <p class="text-gray-500 font-mono text-sm uppercase tracking-widest">Elaborazione Dati...</p>
-                </div>
-              } @else {
-                <div class="flex flex-col items-center text-red-900">
-                   <i class="fa-solid fa-circle-xmark text-5xl mb-4"></i>
-                   <p>DATI CORROTTI</p>
-                </div>
-              }
-            </div>
-
-            <!-- Info Footer -->
-            <div class="p-6 border-t border-gray-800 bg-gray-900/30">
-               <div class="flex justify-between items-start mb-4">
-                 <div class="flex-1">
-                   <h3 class="text-white font-bold text-lg mb-1">{{ project.createdAt | date:'mediumDate' }}</h3>
-                   <p class="text-gray-400 text-xs uppercase tracking-wider">Cast: {{ getProjectSubjectNames(project.subjectIds) }}</p>
-                 </div>
-                 
-                 <div class="flex items-center gap-3">
-                    @if (project.status === 'completed') {
-                       <!-- DELETE BUTTON (New) -->
-                       <button (click)="deleteProject(project.id, $event)" class="text-gray-500 hover:text-red-500 transition-colors mr-2" title="Elimina Scena">
-                          <i class="fa-solid fa-trash-can text-lg"></i>
-                       </button>
-
-                       <!-- REMIX BUTTON -->
-                       <button (click)="remixProject(project, $event)" class="text-gray-400 hover:text-yellow-400 transition-colors" title="Modifica e Rigenera (Remix)">
-                          <i class="fa-solid fa-pen-to-square text-xl"></i>
-                       </button>
-                       <!-- DOWNLOAD BUTTON -->
-                       <a [href]="getSafeUrl(project.resultUrl)" [download]="'scene-' + project.id" class="text-gray-400 hover:text-white transition-colors" (click)="$event.stopPropagation()" title="Scarica">
-                         <i class="fa-solid fa-download text-xl"></i>
-                       </a>
-                    }
-                 </div>
                </div>
-               <p class="text-sm text-gray-500 italic border-l-2 border-gray-700 pl-4">"{{ project.scenePrompt }}"</p>
+
+               <!-- Details (Right) -->
+               <div class="flex-1 p-5 flex flex-col justify-between overflow-hidden">
+                  
+                  <!-- Top Row: Date & Cast -->
+                  <div class="flex justify-between items-start mb-2">
+                     <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 font-mono">{{ project.createdAt | date:'medium' }}</span>
+                        @if (project.aspectRatio) {
+                           <span class="text-[9px] border border-gray-700 text-gray-400 px-1.5 rounded">{{ project.aspectRatio }}</span>
+                        }
+                        @if (project.effectName) {
+                           <span class="text-[9px] bg-gray-800 text-cyan-300 px-1.5 rounded border border-cyan-900">FX: {{ project.effectName }}</span>
+                        }
+                     </div>
+                     
+                     <!-- Actions -->
+                     <div class="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                        @if (project.status === 'completed') {
+                           <button (click)="remixProject(project, $event)" class="h-8 w-8 rounded-full bg-yellow-900/30 text-yellow-500 hover:bg-yellow-500 hover:text-black flex items-center justify-center transition-colors" title="Modifica">
+                              <i class="fa-solid fa-pen text-xs"></i>
+                           </button>
+                           <a [href]="getSafeUrl(project.resultUrl)" [download]="'file-' + project.id" (click)="$event.stopPropagation()" class="h-8 w-8 rounded-full bg-blue-900/30 text-blue-500 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-colors" title="Scarica">
+                              <i class="fa-solid fa-download text-xs"></i>
+                           </a>
+                           <button (click)="deleteProject(project.id, $event)" class="h-8 w-8 rounded-full bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors" title="Elimina">
+                              <i class="fa-solid fa-trash text-xs"></i>
+                           </button>
+                        }
+                     </div>
+                  </div>
+
+                  <!-- Prompt Text -->
+                  <div class="flex-1 bg-black/20 rounded p-3 overflow-y-auto max-h-[100px] border border-white/5">
+                     <p class="text-gray-300 text-sm italic leading-relaxed">"{{ project.scenePrompt }}"</p>
+                  </div>
+                  
+                  <!-- Cast Footer -->
+                  <div class="mt-3 pt-3 border-t border-white/5 text-[10px] text-gray-500 uppercase tracking-widest truncate">
+                     CAST: <span class="text-gray-400">{{ getProjectSubjectNames(project.subjectIds) }}</span>
+                  </div>
+               </div>
             </div>
-          </div>
-        }
-        @if (projects().length === 0) {
-           <div class="flex flex-col items-center justify-center py-32 text-gray-700 border-2 border-dashed border-gray-800 rounded-3xl">
-             <i class="fa-solid fa-film text-6xl mb-4"></i>
-             <p class="text-xl font-bold">ARCHIVIO VUOTO</p>
-             <p class="text-sm">Crea la tua prima scena nello Studio.</p>
-           </div>
-        }
+          }
+          
+          @if (projects().length === 0) {
+             <div class="p-12 text-center border-2 border-dashed border-gray-800 rounded-xl text-gray-600">
+                <i class="fa-solid fa-box-open text-4xl mb-3"></i>
+                <p>Nessun progetto salvato.</p>
+             </div>
+          }
+        </div>
       </div>
     }
     
