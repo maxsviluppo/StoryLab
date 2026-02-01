@@ -41,6 +41,12 @@ interface SceneLayer {
   zIndex: number;
 }
 
+interface Notification {
+  id: string;
+  message: string;
+  type: 'error' | 'success' | 'info';
+}
+
 @Component({
   selector: 'app-root',
   imports: [CommonModule, FormsModule],
@@ -104,6 +110,13 @@ export class AppComponent {
   selectedImageEffect = signal<EffectOption>(this.imageEffects[0]);
   selectedVideoEffect = signal<EffectOption>(this.videoEffects[0]);
 
+  // Computed helper for the canvas preview
+  activeEffectId = computed(() => {
+    if (this.selectedImageEffect().id !== 'none') return this.selectedImageEffect().id;
+    if (this.selectedVideoEffect().id !== 'none') return this.selectedVideoEffect().id;
+    return 'none';
+  });
+
   // Upload Handling
   uploadedImageBase64 = signal<string | null>(null);
 
@@ -124,6 +137,9 @@ export class AppComponent {
   private activeLayerStart = { x: 0, y: 0 }; // Percentage
   
   @ViewChild('sceneCanvas') sceneCanvasRef!: ElementRef<HTMLDivElement>;
+  
+  // --- NOTIFICATION SYSTEM ---
+  notifications = signal<Notification[]>([]);
 
   // --- Computed ---
   sortedSubjects = computed(() => [...this.subjects()].sort((a, b) => b.createdAt - a.createdAt));
@@ -151,6 +167,20 @@ export class AppComponent {
       localStorage.setItem('holo_lab_subjects_v2', JSON.stringify(this.subjects()));
     });
   }
+  
+  // --- Actions: Notification ---
+  addNotification(message: string, type: 'error' | 'success' | 'info', duration: number = 7000) {
+    const id = crypto.randomUUID();
+    this.notifications.update(current => [...current, { id, message, type }]);
+    setTimeout(() => {
+      this.removeNotification(id);
+    }, duration);
+  }
+
+  removeNotification(id: string) {
+    this.notifications.update(current => current.filter(n => n.id !== id));
+  }
+
 
   // --- Actions: Navigation ---
   setView(view: 'lab' | 'gallery' | 'studio' | 'showcase') {
@@ -209,6 +239,14 @@ export class AppComponent {
 
   // --- Actions: Creation & Analysis ---
 
+  private handleGeminiError(err: any): string {
+    const errorStr = JSON.stringify(err || {});
+    if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('quota')) {
+      return "Quota Google esaurita (Limite RPM/Giorno). Attendi 1-2 minuti e riprova. Se persiste, la quota giornaliera è terminata.";
+    }
+    return 'Errore Inaspettato: ' + (err?.message || 'Controlla la console per i dettagli.');
+  }
+
   async analyzeSubject() {
     if (!this.uploadedImageBase64() && !this.newSubjectPrompt()) return;
     
@@ -222,8 +260,9 @@ export class AppComponent {
       );
       this.newSubjectPrompt.set(extractedPrompt);
       this.generationStatus.set('Analisi Completata.');
+      this.addNotification('Analisi del soggetto completata con successo!', 'success', 3000);
     } catch (err) {
-      alert('Analisi Fallita: ' + err);
+      this.addNotification(this.handleGeminiError(err), 'error');
     } finally {
       this.isGenerating.set(false);
       setTimeout(() => this.generationStatus.set(''), 2000);
@@ -231,8 +270,14 @@ export class AppComponent {
   }
 
   async createSubject() {
-    if (!this.newSubjectName()) return;
-    if (!this.uploadedImageBase64() && !this.newSubjectPrompt()) return;
+    if (!this.newSubjectName()) {
+      this.addNotification('Il "Nome in Codice" è obbligatorio.', 'error');
+      return;
+    }
+    if (!this.uploadedImageBase64() && !this.newSubjectPrompt()){
+      this.addNotification('Devi caricare un\'immagine o fornire delle specifiche visive.', 'error');
+      return;
+    }
     
     this.isGenerating.set(true);
     this.generationStatus.set('Salvataggio Modello...');
@@ -267,9 +312,10 @@ export class AppComponent {
       this.uploadedImageBase64.set(null);
       
       this.toggleSubject(newSubject.id);
-      this.setView('gallery'); 
+      this.setView('gallery');
+      this.addNotification(`Modello "${newSubject.name}" creato e aggiunto al cast!`, 'success');
     } catch (err) {
-      alert('Creazione Fallita: ' + err);
+      this.addNotification(this.handleGeminiError(err), 'error');
     } finally {
       this.isGenerating.set(false);
       this.generationStatus.set('');
@@ -283,13 +329,16 @@ export class AppComponent {
   }
 
   addToScene(subject: SubjectModel) {
+    // Find Max Z
+    const maxZ = this.sceneLayers().reduce((max, layer) => Math.max(max, layer.zIndex), 0);
+    
     const newLayer: SceneLayer = {
       id: crypto.randomUUID(),
       subjectId: subject.id,
       x: 50, // Center
       y: 50, // Center
       scale: 1,
-      zIndex: this.sceneLayers().length + 1
+      zIndex: maxZ + 1
     };
     this.sceneLayers.update(prev => [...prev, newLayer]);
     this.selectedLayerId.set(newLayer.id);
@@ -305,12 +354,30 @@ export class AppComponent {
   selectLayer(layerId: string, event?: Event) {
     if (event) event.stopPropagation();
     this.selectedLayerId.set(layerId);
-    
-    // Bring to front logic (optional, but good UX)
-    this.sceneLayers.update(layers => {
-      const maxZ = Math.max(...layers.map(l => l.zIndex), 0);
-      return layers.map(l => l.id === layerId ? { ...l, zIndex: maxZ + 1 } : l);
-    });
+    // Removed auto-bring-to-front to allow precise layering without disrupting composition
+  }
+
+  changeZIndex(action: 'front' | 'back') {
+      const id = this.selectedLayerId();
+      if (!id) return;
+
+      this.sceneLayers.update(layers => {
+          const currentLayer = layers.find(l => l.id === id);
+          if (!currentLayer) return layers;
+
+          const otherLayers = layers.filter(l => l.id !== id);
+          let newZ = currentLayer.zIndex;
+
+          if (action === 'front') {
+              const maxZ = Math.max(...otherLayers.map(l => l.zIndex), 0);
+              newZ = maxZ + 1;
+          } else {
+              const minZ = Math.min(...otherLayers.map(l => l.zIndex), 0);
+              newZ = Math.max(0, minZ - 1); // Avoid negative
+          }
+
+          return layers.map(l => l.id === id ? { ...l, zIndex: newZ } : l);
+      });
   }
 
   updateLayerScale(val: number) {
@@ -338,14 +405,12 @@ export class AppComponent {
     const deltaX = event.clientX - this.dragStart.x;
     const deltaY = event.clientY - this.dragStart.y;
 
-    // Convert pixels to percentage relative to canvas size
     const percentX = (deltaX / canvasRect.width) * 100;
     const percentY = (deltaY / canvasRect.height) * 100;
 
     const newX = this.activeLayerStart.x + percentX;
     const newY = this.activeLayerStart.y + percentY;
 
-    // Clamp values (roughly -50 to 150 to allow off-screen partial)
     const clampedX = Math.max(-20, Math.min(120, newX));
     const clampedY = Math.max(-20, Math.min(120, newY));
 
@@ -359,7 +424,6 @@ export class AppComponent {
     this.isDragging = false;
   }
   
-  // Wheel to resize when hovering selected
   onLayerWheel(event: WheelEvent, layerId: string) {
     if (this.selectedLayerId() !== layerId) return;
     event.preventDefault();
@@ -377,60 +441,76 @@ export class AppComponent {
 
   // --- Generation Logic Update ---
 
+  getLayerLabel(layer: SceneLayer): string {
+    const hPos = layer.x < 33 ? 'Sinistra' : layer.x > 66 ? 'Destra' : 'Centro';
+    const vPos = layer.y < 33 ? 'Alto' : layer.y > 66 ? 'Basso' : 'Centro';
+    
+    return `${vPos} ${hPos} (z:${layer.zIndex})`;
+  }
+
   generateSpatialPrompt(): string {
     const layers = this.sceneLayers();
     if (layers.length === 0) return "";
 
     const descriptions: string[] = [];
     
-    // Sort layers by X position to describe left-to-right
-    const sortedByX = [...layers].sort((a, b) => a.x - b.x);
+    const sortedByZ = [...layers].sort((a, b) => a.zIndex - b.zIndex);
+    const minZ = sortedByZ.length > 0 ? sortedByZ[0].zIndex : 0;
+    const maxZ = sortedByZ.length > 0 ? sortedByZ[sortedByZ.length - 1].zIndex : 0;
 
-    sortedByX.forEach(layer => {
+    sortedByZ.forEach(layer => {
       const subject = this.subjects().find(s => s.subjectId === layer.subjectId || s.id === layer.subjectId);
       if (!subject) return;
 
       let position = "";
-      if (layer.x < 33) position += "on the left";
-      else if (layer.x > 66) position += "on the right";
-      else position += "in the center";
-
-      if (layer.y < 33) position += ", in the upper background";
-      else if (layer.y > 66) position += ", in the foreground";
       
-      if (layer.scale < 0.6) position += " (appearing small/distant)";
-      else if (layer.scale > 1.5) position += " (appearing large/close-up)";
+      if (layer.x < 30) position += "FAR LEFT";
+      else if (layer.x < 45) position += "MID-LEFT";
+      else if (layer.x > 70) position += "FAR RIGHT";
+      else if (layer.x > 55) position += "MID-RIGHT";
+      else position += "CENTER";
 
-      descriptions.push(`[${subject.name}]: located ${position}. Visual: ${subject.prompt}`);
+      if (layer.y < 30) position += ", TOP";
+      else if (layer.y > 70) position += ", BOTTOM";
+      
+      if (layer.zIndex === minZ && layers.length > 1) position += ", BACKGROUND layer";
+      else if (layer.zIndex === maxZ && layers.length > 1) position += ", FOREGROUND layer (closest to camera)";
+      
+      if (layer.scale < 0.6) position += " (appears SMALL/DISTANT)";
+      else if (layer.scale > 1.3) position += " (appears LARGE/CLOSE-UP)";
+
+      descriptions.push(`- [LAYER Z:${layer.zIndex}] SUBJECT: ${subject.name} | POSITION: ${position} | VISUALS: ${subject.prompt}`);
     });
 
-    return `\n\nSPATIAL LAYOUT INSTRUCTIONS:\n${descriptions.join('\n')}\nCompose the scene respecting these relative positions.`;
+    return `\n\nSTRICT COMPOSITION & DEPTH LAYOUT (Render strictly in this order):\n${descriptions.join('\n')}\nEnsure foreground layers occlude background layers naturally.`;
   }
 
   async createProject(type: 'image' | 'video') {
     let squad = this.selectedSubjects();
     let prompt = this.newProjectPrompt();
     const ratio = this.selectedAspectRatio();
+    let spatialPrompt = "";
     
-    // Override if in Canvas Mode
     if (this.isCanvasMode() && this.sceneLayers().length > 0) {
-        const spatialPrompt = this.generateSpatialPrompt();
-        prompt += spatialPrompt;
-        
-        // Also ensure the "squad" includes all layers in the canvas, even if not selected in gallery
+        spatialPrompt = this.generateSpatialPrompt();
         const layerSubjectIds = new Set(this.sceneLayers().map(l => l.subjectId));
         squad = this.subjects().filter(s => layerSubjectIds.has(s.id));
     }
     
-    if (squad.length === 0 || !prompt) return;
+    if (squad.length === 0) {
+        this.addNotification('Devi prima selezionare almeno un attore dal Cast.', 'error');
+        return;
+    }
+    if (!prompt) {
+        this.addNotification('Il prompt di scena è obbligatorio per descrivere l\'ambiente.', 'error');
+        return;
+    }
 
     this.isGenerating.set(true);
     
-    // Always create a NEW project ID to preserve history
     const projectId = crypto.randomUUID();
     const subjectIds = squad.map(s => s.id);
     
-    // Determine Effect Prompt
     let effectPrompt = "";
     let effectNameLabel = "";
     
@@ -442,14 +522,11 @@ export class AppComponent {
        effectNameLabel = this.selectedVideoEffect().label;
     }
 
-    // Costruzione Prompt Combinato
     let fullPrompt = "";
     
     if (this.isCanvasMode()) {
-         // In canvas mode, prompt already contains spatial info appended above
-         fullPrompt = `Scene Description: ${prompt}`;
+         fullPrompt = `${spatialPrompt}\n\nSCENE ENVIRONMENT / CONTEXT:\n${prompt}`;
     } else {
-        // Classic Mode
         if (squad.length === 1) {
             fullPrompt = `Character Reference Description: ${squad[0].prompt}. \n\nTarget Scene: ${prompt}.`;
         } else {
@@ -458,7 +535,6 @@ export class AppComponent {
         }
     }
 
-    // Append Effect Instructions if present
     if (effectPrompt) {
         fullPrompt += `\n\nVISUAL STYLE / POST-PROCESSING INSTRUCTIONS: Apply the following style strictly: ${effectPrompt}.`;
     }
@@ -475,17 +551,13 @@ export class AppComponent {
       effectName: effectNameLabel !== 'Nessuno' ? effectNameLabel : undefined
     };
     
-    // Add to top of list
     this.projects.update(prev => [newProject, ...prev]);
-    
-    // Clean up edit mode logic (we are done referring to the old one)
     this.editingProject.set(null);
     this.setView('showcase'); 
 
     try {
       if (type === 'video') {
         this.generationStatus.set(`Veo 2.0: Generazione Clip (${ratio}) + FX...`);
-        // If canvas mode, we pick the first layer as reference or just the first subject
         const primary = squad[0]; 
         if (!primary) throw new Error("Nessun soggetto primario trovato.");
 
@@ -498,10 +570,11 @@ export class AppComponent {
         const imageUrl = await this.gemini.generateSceneImage(fullPrompt, ratio);
         this.updateProjectStatus(projectId, 'completed', imageUrl);
       }
+      this.addNotification(`Progetto "${type === 'image' ? 'Immagine' : 'Video'}" generato con successo!`, 'success');
     } catch (err) {
       console.error(err);
       this.updateProjectStatus(projectId, 'failed', '');
-      alert('Missione Fallita: ' + err);
+      this.addNotification(this.handleGeminiError(err), 'error');
     } finally {
       this.isGenerating.set(false);
       this.generationStatus.set('');
@@ -518,29 +591,18 @@ export class AppComponent {
   remixProject(project: Project, event: Event) {
     event.stopPropagation();
     
-    // Set edit mode with FULL project object
     this.editingProject.set(project);
-
-    // 1. Restore Subject Selection
     this.selectedSubjectIds.set(new Set(project.subjectIds));
-    
-    // 2. Restore Prompt
     this.newProjectPrompt.set(project.scenePrompt);
     
-    // 3. Restore Ratio (if exists)
     if (project.aspectRatio) {
       this.selectedAspectRatio.set(project.aspectRatio);
     }
     
-    // Reset Effects on Remix (User chooses new effect)
     this.selectedImageEffect.set(this.imageEffects[0]);
     this.selectedVideoEffect.set(this.videoEffects[0]);
-    
-    // Disable Canvas Mode on Remix for simplicity (simplification)
     this.isCanvasMode.set(false);
     this.sceneLayers.set([]);
-
-    // 4. Navigate to Studio
     this.setView('studio');
   }
 
@@ -553,7 +615,6 @@ export class AppComponent {
 
   deleteProject(id: string, event: Event) {
     event.stopPropagation();
-    // Native Toast/Dialog simulation
     if (confirm("Sei sicuro di voler eliminare questa scena dall'archivio?")) {
       this.projects.update(prev => prev.filter(p => p.id !== id));
       if (this.selectedProject()?.id === id) {
@@ -588,10 +649,16 @@ export class AppComponent {
   }
 
   setImageEffect(effect: EffectOption) {
+    if (effect.id !== 'none') {
+      this.selectedVideoEffect.set(this.videoEffects[0]); 
+    }
     this.selectedImageEffect.set(effect);
   }
 
   setVideoEffect(effect: EffectOption) {
+    if (effect.id !== 'none') {
+      this.selectedImageEffect.set(this.imageEffects[0]);
+    }
     this.selectedVideoEffect.set(effect);
   }
   

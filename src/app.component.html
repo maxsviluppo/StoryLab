@@ -1,4 +1,29 @@
 <div class="flex h-full flex-col font-tech text-gray-200 relative scanline">
+
+  <!-- NOTIFICATION CONTAINER -->
+  <div class="fixed top-4 right-4 z-[100] w-full max-w-sm space-y-3">
+    @for (notification of notifications(); track notification.id) {
+      <div 
+        class="flex items-start gap-4 rounded-xl border p-4 shadow-2xl animate-fade-in glass-panel"
+        [ngClass]="{
+          'border-red-500/50 bg-red-900/20 text-red-200': notification.type === 'error',
+          'border-green-500/50 bg-green-900/20 text-green-200': notification.type === 'success',
+          'border-cyan-500/50 bg-cyan-900/20 text-cyan-200': notification.type === 'info'
+        }">
+        <div class="mt-1">
+          @if(notification.type === 'error') { <i class="fa-solid fa-triangle-exclamation"></i> }
+          @if(notification.type === 'success') { <i class="fa-solid fa-check-circle"></i> }
+          @if(notification.type === 'info') { <i class="fa-solid fa-info-circle"></i> }
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-bold">{{ notification.message }}</p>
+        </div>
+        <button (click)="removeNotification(notification.id)" class="text-gray-500 hover:text-white transition-colors">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      </div>
+    }
+  </div>
   
   <!-- Header -->
   <header class="flex items-center justify-between border-b border-cyan-900/50 bg-black/80 p-4 backdrop-blur-md z-10 shadow-lg shadow-cyan-900/10">
@@ -89,7 +114,7 @@
                        <div class="flex flex-col items-center gap-2 text-gray-400 group-hover:text-cyan-400">
                           <i class="fa-solid fa-upload text-3xl mb-1"></i>
                           <span class="text-sm font-bold uppercase tracking-widest">Carica Dati Visivi</span>
-                          <span class="text-[10px] text-gray-600">Trascina una foto per scansionare il soggetto</span>
+                          <span class="text-sm text-gray-600">Trascina una foto per scansionare il soggetto</span>
                        </div>
                     </div>
                  } @else {
@@ -131,7 +156,7 @@
             <!-- Main Create Button -->
             <button 
               (click)="createSubject()"
-              [disabled]="isGenerating() || !newSubjectName() || (!newSubjectPrompt() && !uploadedImageBase64())"
+              [disabled]="isGenerating()"
               class="group relative w-full overflow-hidden rounded-lg bg-cyan-600 px-6 py-5 font-bold text-white transition-all hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]">
               <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
               <span class="flex items-center justify-center gap-3 text-lg tracking-wider">
@@ -302,14 +327,61 @@
                    <!-- SCENE CANVAS (Editor) -->
                    <div class="flex flex-col h-full gap-2">
                       <div class="flex justify-between items-center text-[10px] text-gray-400 uppercase font-mono">
-                         <span><i class="fa-solid fa-arrows-up-down-left-right mr-1"></i> Stage Visivo</span>
-                         <span>Trascina i soggetti. Scroll per zoom.</span>
+                         <span class="text-cyan-400"><i class="fa-solid fa-arrows-up-down-left-right mr-1"></i> Stage Visivo</span>
+                         <span>Trascina per posizionare. Scroll per zoom/profondità.</span>
                       </div>
                       
                       <div #sceneCanvas class="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden border-2 border-dashed border-gray-700 shadow-inner group">
                          <!-- Grid Background -->
-                         <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: linear-gradient(#444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px); background-size: 20px 20px;"></div>
+                         <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: linear-gradient(#444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px); background-size: 33.33% 33.33%;"></div>
                          
+                         <!-- LIVE FX PREVIEWS (Overlay) -->
+                         <!-- Fog -->
+                         @if (activeEffectId() === 'fog') {
+                            <div class="absolute inset-0 bg-gradient-to-t from-gray-200/20 via-gray-400/10 to-transparent pointer-events-none z-10 animate-pulse"></div>
+                            <div class="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-white/20 to-transparent blur-xl pointer-events-none z-10"></div>
+                         }
+                         <!-- Smoke -->
+                         @if (activeEffectId() === 'smoke') {
+                            <div class="absolute inset-0 bg-black/40 pointer-events-none z-10"></div>
+                            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#000000aa_100%)] pointer-events-none z-10"></div>
+                         }
+                         <!-- Laser -->
+                         @if (activeEffectId() === 'laser') {
+                            <div class="absolute inset-0 pointer-events-none z-10 opacity-50 mix-blend-screen" 
+                                 style="background: repeating-linear-gradient(90deg, transparent 0, transparent 48%, rgba(255, 0, 80, 0.5) 50%, transparent 52%, transparent 100%); background-size: 200px 100%;"></div>
+                             <div class="absolute top-1/2 w-full h-0.5 bg-red-500 shadow-[0_0_10px_#f00] pointer-events-none z-10 opacity-70"></div>
+                         }
+                         <!-- Noir -->
+                         @if (activeEffectId() === 'noir') {
+                            <div class="absolute inset-0 backdrop-grayscale backdrop-contrast-125 pointer-events-none z-20 mix-blend-color"></div>
+                            <div class="absolute inset-0 bg-black/20 pointer-events-none z-20 mix-blend-multiply"></div>
+                         }
+                         <!-- Point n Click -->
+                         @if (activeEffectId() === 'pointnclick') {
+                            <div class="absolute inset-0 pointer-events-none z-20 mix-blend-overlay opacity-30 bg-[url('https://www.transparenttextures.com/patterns/pixel-weave.png')]"></div>
+                            <div class="absolute bottom-2 left-2 text-green-400 font-mono text-xs pointer-events-none z-20">COMMAND: WALK TO</div>
+                         }
+                         <!-- Hologram -->
+                         @if (activeEffectId() === 'hologram') {
+                            <div class="absolute inset-0 bg-blue-900/20 pointer-events-none z-20 mix-blend-screen"></div>
+                            <div class="absolute inset-0 pointer-events-none z-20 opacity-20" style="background: repeating-linear-gradient(transparent, transparent 2px, #00f3ff 3px);"></div>
+                         }
+                         <!-- VHS -->
+                         @if (activeEffectId() === 'vhs') {
+                             <div class="absolute inset-0 backdrop-sepia-[0.5] backdrop-hue-rotate-[-30deg] pointer-events-none z-20"></div>
+                             <div class="absolute inset-0 pointer-events-none z-20 opacity-10 animate-pulse bg-white mix-blend-overlay"></div>
+                         }
+                         <!-- Cyber/Matrix -->
+                         @if (activeEffectId() === 'cyber' || activeEffectId() === 'matrix') {
+                             <div class="absolute inset-0 bg-green-900/20 pointer-events-none z-10 mix-blend-color-dodge"></div>
+                             <div class="absolute top-2 right-2 text-[10px] text-green-500 font-mono pointer-events-none z-20">SYSTEM_OVERRIDE...</div>
+                         }
+                         <!-- Glow -->
+                         @if (activeEffectId() === 'glow') {
+                            <div class="absolute inset-0 backdrop-blur-[1px] backdrop-brightness-125 pointer-events-none z-20 mix-blend-lighten"></div>
+                         }
+
                          <!-- Empty State -->
                          @if (sceneLayers().length === 0) {
                             <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-600 pointer-events-none">
@@ -325,7 +397,7 @@
                               <div 
                                 (mousedown)="onCanvasMouseDown($event, layer)"
                                 (wheel)="onLayerWheel($event, layer.id)"
-                                class="absolute cursor-move select-none transition-transform"
+                                class="absolute cursor-move select-none transition-transform group/layer"
                                 [style.left.%]="layer.x"
                                 [style.top.%]="layer.y"
                                 [style.zIndex]="layer.zIndex"
@@ -333,6 +405,11 @@
                                 [class.ring-2]="selectedLayerId() === layer.id"
                                 [class.ring-cyan-500]="selectedLayerId() === layer.id">
                                  <img [src]="subj.imageUrl" class="w-24 h-24 object-contain drop-shadow-2xl pointer-events-none">
+                                 
+                                 <!-- Position Label Feedback -->
+                                 <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/80 text-[9px] text-cyan-400 px-2 py-1 rounded border border-cyan-500/30 opacity-0 group-hover/layer:opacity-100 transition-opacity pointer-events-none z-50">
+                                   {{ getLayerLabel(layer) }}
+                                 </div>
                               </div>
                             }
                          }
@@ -341,16 +418,31 @@
                       <!-- Layer Controls (Active Selection) -->
                       @if (activeLayer()) {
                          <div class="bg-black/60 rounded-lg p-3 border border-gray-700 flex justify-between items-center animate-fade-in">
-                            <span class="text-xs text-white font-bold">Livello Selezionato</span>
+                            <div class="flex flex-col">
+                              <span class="text-xs text-white font-bold">Livello Attivo</span>
+                              <span class="text-[9px] text-cyan-400 font-mono">{{ getLayerLabel(activeLayer()!) }}</span>
+                            </div>
                             <div class="flex items-center gap-4">
+                               <!-- New Z-Index Controls -->
+                               <div class="flex items-center gap-1 border-r border-gray-700 pr-4 mr-2">
+                                  <button (click)="changeZIndex('back')" title="Sposta Sotto (Send Backward)" class="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded transition-colors">
+                                     <i class="fa-solid fa-layer-group fa-flip-vertical text-xs"></i>
+                                     <span class="sr-only">Sotto</span>
+                                  </button>
+                                  <button (click)="changeZIndex('front')" title="Porta Sopra (Bring Forward)" class="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded transition-colors">
+                                     <i class="fa-solid fa-layer-group text-xs"></i>
+                                     <span class="sr-only">Sopra</span>
+                                  </button>
+                               </div>
+
                                <div class="flex items-center gap-2">
-                                  <span class="text-[9px] text-gray-400">SCALA</span>
+                                  <span class="text-[9px] text-gray-400">SCALA (ZOOM)</span>
                                   <input type="range" min="0.2" max="3" step="0.1" 
                                     [ngModel]="activeLayer()!.scale" 
                                     (ngModelChange)="updateLayerScale($event)"
                                     class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                                </div>
-                               <button (click)="removeLayer(activeLayer()!.id)" class="text-red-500 hover:text-red-400 text-xs">
+                               <button (click)="removeLayer(activeLayer()!.id)" class="text-red-500 hover:text-red-400 text-xs ml-2">
                                   <i class="fa-solid fa-trash"></i>
                                </button>
                             </div>
@@ -360,11 +452,13 @@
 
                    <!-- Mini Prompt (Context) -->
                    <div class="mt-4">
-                      <label class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Contesto Scena</label>
-                      <input 
+                      <label class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Ambiente / Sfondo (Context)</label>
+                      <textarea 
                         [(ngModel)]="newProjectPrompt" 
-                        placeholder="Es: 'In una foresta di neon sotto la pioggia...'"
-                        class="w-full rounded-lg bg-black/50 border border-purple-900 p-3 text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm">
+                        rows="2"
+                        placeholder="Descrivi DOVE si trovano i personaggi (es: 'In una foresta di neon sotto la pioggia, stile cyberpunk')..."
+                        class="w-full rounded-lg bg-black/50 border border-purple-900 p-3 text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm resize-none"></textarea>
+                      <p class="text-[9px] text-gray-500 mt-1">* La posizione degli attori è definita automaticamente dal canvas sopra.</p>
                    </div>
 
                 } @else {
@@ -383,7 +477,7 @@
                   }
 
                   <div class="flex-1 flex flex-col">
-                     <label class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Prompt di Scena</label>
+                     <label class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-2">Prompt di Scena (Libero)</label>
                      <textarea 
                       [(ngModel)]="newProjectPrompt"
                       [disabled]="selectedSubjects().length === 0"
@@ -461,7 +555,7 @@
                 <div class="grid grid-cols-2 gap-4 mt-auto">
                    <button 
                      (click)="createProject('image')"
-                     [disabled]="isGenerating() || (isCanvasMode() ? sceneLayers().length === 0 : selectedSubjects().length === 0) || !newProjectPrompt()"
+                     [disabled]="isGenerating()"
                      class="py-4 rounded-xl bg-gradient-to-t from-gray-900 to-gray-800 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-white transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-1 group">
                      <i class="fa-solid fa-camera text-2xl mb-1 text-cyan-500 group-hover:scale-110 transition-transform"></i>
                      <span class="text-xs font-bold">{{ editingProject() ? 'RIGENERA' : 'GENERA' }} FOTO</span>
@@ -472,7 +566,7 @@
                    
                    <button 
                      (click)="createProject('video')"
-                     [disabled]="isGenerating() || (isCanvasMode() ? sceneLayers().length === 0 : selectedSubjects().length === 0) || !newProjectPrompt()"
+                     [disabled]="isGenerating()"
                      class="py-4 rounded-xl bg-gradient-to-t from-gray-900 to-gray-800 border border-gray-700 hover:border-purple-500 text-gray-300 hover:text-white transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-1 group">
                      <i class="fa-solid fa-film text-2xl mb-1 text-purple-500 group-hover:scale-110 transition-transform"></i>
                      <span class="text-xs font-bold">{{ editingProject() ? 'RIGENERA' : 'GENERA' }} VIDEO</span>
